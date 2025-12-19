@@ -7,10 +7,14 @@ export default async function handler(req, res) {
     const payload = req.body;
     console.log("Webhook received. method:", req.method);
     console.log("Webhook meta event:", payload?.meta?.event);
-    const eventType = payload?.meta?.event;
+    const eventType =
+    payload?.event ||
+    payload?.type ||
+    payload?.meta?.event;
 
-    // Only react to event creation
-    if (eventType !== "event.created") {
+    console.log("Detected Livestorm eventType:", eventType);
+
+    if (!eventType || !eventType.includes("event.created")) {
     console.log("Ignored webhook eventType:", eventType);
     return res.status(200).json({ ok: true, ignored: eventType });
     }
