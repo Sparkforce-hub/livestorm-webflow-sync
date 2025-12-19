@@ -63,7 +63,7 @@ export default async function handler(req, res) {
         "webinar-form-title": title,
 
         "webinar-description": description,
-        "webinar-summary": description ? description.substring(0, 200) : "",
+        "webinar--summary": description ? description.substring(0, 200) : "",
 
         // Optional: if you want to store it somewhere later
         // "registration-link": registrationLink
