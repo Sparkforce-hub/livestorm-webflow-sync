@@ -5,23 +5,19 @@ export default async function handler(req, res) {
 
   try {
     const payload = req.body;
-    console.log("Webhook received. method:", req.method);
-    console.log("Webhook meta event:", payload?.meta?.event);
-    console.log("Top-level keys:", Object.keys(payload || {}));
-    console.log("Raw payload:", JSON.stringify(payload, null, 2));
+
+    // ✅ Livestorm Webhooks app: event name is here
     const eventType =
-    payload?.event ||
-    payload?.type ||
-    payload?.trigger ||
-    payload?.action ||
-    payload?.name ||
-    payload?.meta?.event;
+      payload?.data?.meta?.webhook?.event ||
+      payload?.meta?.event ||
+      payload?.event ||
+      payload?.type;
 
     console.log("Detected Livestorm eventType:", eventType);
 
-    if (!eventType || !eventType.includes("event.created")) {
-    console.log("Ignored webhook eventType:", eventType);
-    return res.status(200).json({ ok: true, ignored: eventType });
+    if (eventType !== "event.created") {
+      console.log("Ignored webhook eventType:", eventType);
+      return res.status(200).json({ ok: true, ignored: eventType });
     }
 
     const data = payload.data;
@@ -34,25 +30,26 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: "Missing env vars" });
     }
 
-    // Core values from Livestorm
     const livestormId = data.id;
     const title = attrs.title || "Livestorm Webinar";
     const description = attrs.description || "";
+    const registrationLink = attrs.registration_link || "";
 
-    // Required: slug
+    // Livestorm sometimes provides no start date until scheduled
+    // Your Webflow field is REQUIRED, so we must set something.
+    // We'll use "now + 7 days" when it's not scheduled yet.
+    const startAt =
+      attrs.start_at ||
+      attrs.starts_at || // just in case variant
+      new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+
+    // Generate slug (Webflow requires unique slug)
     const baseSlug = title
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/(^-|-$)/g, "");
 
     const slug = `webinar-${String(livestormId).slice(0, 8)}-${baseSlug}`;
-
-    // Required: date (ISO)
-    const startAt = attrs.start_at; // already ISO from Livestorm
-
-    if (!startAt) {
-      return res.status(400).json({ error: "Missing start date from Livestorm" });
-    }
 
     const webflowItem = {
       fieldData: {
@@ -66,11 +63,14 @@ export default async function handler(req, res) {
         "webinar-form-title": title,
 
         "webinar-description": description,
-        "webinar-summary": description.substring(0, 200)
+        "webinar-summary": description ? description.substring(0, 200) : "",
+
+        // Optional: if you want to store it somewhere later
+        // "registration-link": registrationLink
       }
     };
 
-    const response = await fetch(
+    const resp = await fetch(
       `https://api.webflow.com/v2/collections/${COLLECTION_ID}/items/live`,
       {
         method: "POST",
@@ -82,22 +82,21 @@ export default async function handler(req, res) {
       }
     );
 
-    const text = await response.text();
+    const text = await resp.text();
 
-    if (!response.ok) {
+    if (!resp.ok) {
+      console.log("Webflow error:", resp.status, text);
       return res.status(500).json({
         error: "Webflow API error",
-        status: response.status,
+        status: resp.status,
         details: text
       });
     }
 
+    console.log("Webflow item created successfully");
     return res.status(200).json({ ok: true });
-
   } catch (err) {
-    return res.status(500).json({
-      error: "Server error",
-      message: String(err)
-    });
+    console.log("Server error:", err);
+    return res.status(500).json({ error: "Server error", message: String(err) });
   }
 }
