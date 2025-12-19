@@ -7,9 +7,14 @@ export default async function handler(req, res) {
     const payload = req.body;
     console.log("Webhook received. method:", req.method);
     console.log("Webhook meta event:", payload?.meta?.event);
+    console.log("Top-level keys:", Object.keys(payload || {}));
+    console.log("Raw payload:", JSON.stringify(payload, null, 2));
     const eventType =
     payload?.event ||
     payload?.type ||
+    payload?.trigger ||
+    payload?.action ||
+    payload?.name ||
     payload?.meta?.event;
 
     console.log("Detected Livestorm eventType:", eventType);
