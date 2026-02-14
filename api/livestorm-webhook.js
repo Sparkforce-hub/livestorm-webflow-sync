@@ -33,7 +33,8 @@ export default async function handler(req, res) {
     // IMPORTANT: this is the plain text field you added to the Webflow collection
     // Default slug: "livestorm-id"
     // If your Webflow field slug differs, set WEBFLOW_LIVESTORM_ID_FIELD in Vercel env vars.
-   const LIVESTORM_ID_FIELD = "webinar-embedded-form";
+   const LIVESTORM_ID_FIELD =
+    process.env.WEBFLOW_LIVESTORM_ID_FIELD || "livestorm-id";
 
     if (!WEBFLOW_TOKEN || !COLLECTION_ID) {
       return res.status(500).json({ error: "Missing env vars" });
