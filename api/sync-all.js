@@ -144,6 +144,7 @@ export default async function handler(req, res) {
     const results = { total: events.length, created: 0, updated: 0, errors: []
   };
 
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     for (const event of events) {
       try {
         const livestormId = String(event.id);
@@ -159,6 +160,7 @@ export default async function handler(req, res) {
           console.log(`Created: ${fieldData.name}`);
           results.created++;
         }
+        await sleep(500);
       } catch (err) {
         console.log(`Error syncing event ${event.id}:`, err.message);
         results.errors.push({ id: event.id, error: err.message });
