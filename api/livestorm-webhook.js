@@ -12,7 +12,8 @@ export default async function handler(req, res) {
         payload?.event ||
         payload?.type;
 
-      console.log("Detected Livestorm eventType:", eventType);
+        // TEMPORARY DEBUG - remove after we identify the payload structure
+      console.log("FULL PAYLOAD:", JSON.stringify(payload, null, 2));
 
       const ALLOWED_PREFIXES = ["event.", "session."];
       if (!eventType || !ALLOWED_PREFIXES.some((p) => eventType.startsWith(p)))
