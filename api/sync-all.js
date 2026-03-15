@@ -85,32 +85,49 @@ export default async function handler(req, res) {
       return null;
     }
 
-    function buildFieldData(event) {
-      const attrs = event.attributes || {};
-      const livestormId = String(event.id);
-      const title = attrs.title || "Livestorm Webinar";
-      const description = attrs.description || "";
-      const startAt =
-        attrs.start_at ||
-        attrs.starts_at ||
-        new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+    function stripHtml(html) {
+    return html ? html.replace(/<[^>]*>/g, "").replace(/&nbsp;/g, " ").trim() :
+  "";
+  }
 
-      const slug = `webinar-${livestormId.slice(0, 8)}-${title
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/(^-|-$)/g, "")}`;
+  function buildFieldData(event) {
+    const attrs = event.attributes || {};
+    const livestormId = String(event.id);
+    const title = attrs.title || "Livestorm Webinar";
+    const description = stripHtml(attrs.description || "");
 
-      return {
-        name: title,
-        slug,
-        "webinar-heading-2": title,
-        "date-and-time": startAt,
-        "webinar-form-title": title,
-        "webinar-description": description,
-        "webinar---summary": description ? description.substring(0, 200) : "",
-        [LIVESTORM_ID_FIELD]: livestormId,
-      };
-    }
+    // Log attrs so we can see all available date fields
+    console.log("Event attrs keys:", Object.keys(attrs));
+    console.log("Date fields:", {
+      start_at: attrs.start_at,
+      starts_at: attrs.starts_at,
+      estimated_started_at: attrs.estimated_started_at,
+      next_occurrence_at: attrs.next_occurrence_at,
+    });
+
+    const startAt =
+      attrs.estimated_started_at ||
+      attrs.next_occurrence_at ||
+      attrs.start_at ||
+      attrs.starts_at ||
+      new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+
+    const slug = `webinar-${livestormId.slice(0, 8)}-${title
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/(^-|-$)/g, "")}`;
+
+    return {
+      name: title,
+      slug,
+      "webinar-heading-2": title,
+      "date-and-time": startAt,
+      "webinar-form-title": title,
+      "webinar-description": description,
+      "webinar---summary": description ? description.substring(0, 200) : "",
+      [LIVESTORM_ID_FIELD]: livestormId,
+    };
+  }
 
     async function updateItem(itemId, fieldData) {
       const { resp: patchResp, text: patchText } = await wfFetch(
