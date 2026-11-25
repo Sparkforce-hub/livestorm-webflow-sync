@@ -1,0 +1,7 @@
+{
+  "name": "livestorm-webflow-sync",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=18" },
+  "scripts": { "test": "node test/sync.test.js" }
+}

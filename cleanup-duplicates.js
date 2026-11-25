@@ -35,8 +35,7 @@
      let offset = 0;
      while (true) {
        const { resp, json } = await wfFetch(
-         `https://api.webflow.com/v2/collections/${COLLECTION_ID}/${endpoint}?l
- imit=100&offset=${offset}`
+         `https://api.webflow.com/v2/collections/${COLLECTION_ID}/${endpoint}?limit=100&offset=${offset}`
        );
        if (!resp.ok) break;
        const items = json?.items || [];
