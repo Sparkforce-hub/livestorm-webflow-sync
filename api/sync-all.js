@@ -2,7 +2,7 @@
 // and can be triggered by hand with:  Authorization: Bearer <CRON_SECRET>
 import {
   getConfig, safeEqual, fetchLivestormEvents, fetchEventStart,
-  isPublishable, loadWebflowIndex, upsertEvent,
+  isPublishable, isSettled, loadWebflowIndex, upsertEvent,
 } from "../lib/sync.js";
 
 export const config = { maxDuration: 60 };
@@ -33,7 +33,11 @@ export default async function handler(req, res) {
     for (const event of events) {
       if (!isPublishable(event)) { results.skipped++; continue; }
       try {
-        const startAt = await fetchEventStart(cfg, event.id);
+        const existing = index.get(String(event.id));
+        // Settled past webinars keep their stored date; skip the sessions lookup to stay well inside the time limit.
+        const startAt = existing && isSettled(existing)
+          ? existing.fieldData["date-and-time"]
+          : await fetchEventStart(cfg, event.id);
         const action = await upsertEvent(cfg, index, event, startAt);
         results[action]++;
         if (action !== "unchanged") console.log(`${action}: ${event.attributes?.title} (${event.id})`);

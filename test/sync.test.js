@@ -11,7 +11,7 @@ process.env.LIVESTORM_WEBHOOK_SECRET = "hook-secret";
 const now = Math.floor(Date.now() / 1000);
 const DAY = 86400;
 const lsEvents = [
-  { id: "ev-aaaaaaaa-1", type: "events", attributes: { title: "Future webinar", description: "<p>Hello&nbsp;world</p>", status: "published" } },
+  { id: "ev-aaaaaaaa-1", type: "events", attributes: { title: "Future webinar", description: "<p onclick=\"x()\">Hello&nbsp;<strong>world</strong></p><script>alert(1)</script>", status: "published" } },
   { id: "ev-bbbbbbbb-2", type: "events", attributes: { title: "No sessions yet", description: "", status: "published" } },
   { id: "ev-cccccccc-3", type: "events", attributes: { title: "Draft one", status: "draft" } },
 ];
@@ -89,8 +89,11 @@ assert.deepEqual([res.body.created, res.body.updated, res.body.skipped], [2, 0, 
 const future = wfItems.find((i) => i.fieldData.name === "Future webinar");
 assert.equal(future.fieldData["webinar-embedded-form"], "ev-aaaaaaaa-1");
 assert.equal(future.fieldData["date-and-time"], new Date((now + 3 * DAY) * 1000).toISOString(), "next upcoming session date");
-assert.equal(future.fieldData["webinar-description"], "Hello world");
-assert.match(future.fieldData.slug, /^webinar-ev-aaaaa-future-webinar$/);
+assert.equal(future.fieldData["webinar-description"], "<p>Hello&nbsp;<strong>world</strong></p>", "formatting kept, script and handlers dropped");
+assert.equal(future.fieldData["webinar---summary"], "Hello world");
+assert.equal(future.fieldData["webinar-heading-2"], "<h1>Future webinar</h1>");
+assert.equal(future.fieldData.status, "03319a09047e67cbd26a293509624855", "status Upcoming");
+assert.equal(future.fieldData.slug, "future-webinar");
 const noDate = wfItems.find((i) => i.fieldData.name === "No sessions yet");
 assert.ok(!("date-and-time" in noDate.fieldData), "no fake +7 day date");
 
@@ -99,12 +102,33 @@ res = mockRes(); await syncAll(cronReq("Bearer cron-secret"), res);
 assert.deepEqual([res.body.created, res.body.updated, res.body.unchanged], [0, 0, 2]);
 assert.equal(wfItems.length, 2, "no duplicates on re-run");
 
-// 4. rename → update, slug kept
+// 4. Webflow owns the content: edits made in Webflow survive a Livestorm rename
+future.fieldData["webinar-heading-2"] = "<h1>Future <strong>webinar</strong></h1>";
+future.fieldData["webinar-form-title"] = "Future webinar | SparkForce";
+future.fieldData["webinar---summary"] = "";
 lsEvents[0].attributes.title = "Future webinar (renamed)";
 res = mockRes(); await syncAll(cronReq("Bearer cron-secret"), res);
+assert.equal(res.body.updated, 1, "only the empty summary is filled");
+assert.equal(future.fieldData.name, "Future webinar", "name not overwritten");
+assert.equal(future.fieldData["webinar-heading-2"], "<h1>Future <strong>webinar</strong></h1>", "styled heading kept");
+assert.equal(future.fieldData["webinar-form-title"], "Future webinar | SparkForce");
+assert.equal(future.fieldData["webinar---summary"], "Hello world", "empty field filled");
+assert.equal(future.fieldData.slug, "future-webinar", "slug unchanged");
+
+// 4b. Livestorm owns the schedule: a moved session updates the date
+lsSessions["ev-aaaaaaaa-1"][1].attributes.estimated_started_at = now + 4 * DAY;
+res = mockRes(); await syncAll(cronReq("Bearer cron-secret"), res);
 assert.equal(res.body.updated, 1);
-assert.equal(future.fieldData.name, "Future webinar (renamed)");
-assert.match(future.fieldData.slug, /future-webinar$/, "slug unchanged after rename");
+assert.equal(future.fieldData["date-and-time"], new Date((now + 4 * DAY) * 1000).toISOString());
+
+// 4c. A settled past webinar flips to On demand without a sessions lookup
+wfItems.push({ id: "wf-old", fieldData: { name: "Old one", slug: "old-one", "webinar-embedded-form": "ev-eeeeeeee-5",
+  "date-and-time": new Date((now - 30 * DAY) * 1000).toISOString(), status: "03319a09047e67cbd26a293509624855", "webinar-heading-2": "<h1>Old</h1>" } });
+lsEvents.push({ id: "ev-eeeeeeee-5", type: "events", attributes: { title: "Old one", status: "published" } });
+calls = [];
+res = mockRes(); await syncAll(cronReq("Bearer cron-secret"), res);
+assert.equal(wfItems.find((i) => i.id === "wf-old").fieldData.status, "fab10897748c6f4490a1d751d65e4dab", "status On demand");
+assert.ok(!calls.some((c) => c.includes("ev-eeeeeeee-5/sessions")), "no sessions lookup for settled items");
 
 // 5. webhook: auth, ignore, then sync a single event re-read from the API
 res = mockRes(); await webhook({ method: "POST", query: {}, body: {} }, res);
